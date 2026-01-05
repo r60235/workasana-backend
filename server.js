@@ -16,11 +16,17 @@ const JWT_SECRET = process.env.JWT_SECRET || "workasana_jwt_secret_key";
 const PORT = process.env.PORT || 5000;
 
 // connect to database
-connectDB();
+connectDB(); 
 
 // basic setup
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:5177"],
+  origin: [
+    "http://localhost:5173", 
+    "http://localhost:5174", 
+    "http://localhost:5177",
+    "https://workasana-app.vercel.app",
+    "https://workasana-app-*.vercel.app"
+  ],
   credentials: true
 }));
 app.use(express.json());
@@ -529,194 +535,54 @@ app.get("/api/health", async (req, res) => {
   }
 });
 
+// root health check for Vercel
+app.get("/", (req, res) => {
+  res.json({ 
+    message: "Workasana Backend API",
+    status: "running",
+    timestamp: new Date().toISOString()
+  });
+});
+
 // sample data initialization for MongoDB
 const initSampleData = async () => {
   try {
     // check if data already exists
-    const [userCount, teamCount, projectCount, taskCount] = await Promise.all([
-      User.countDocuments(),
-      Team.countDocuments(),
-      Project.countDocuments(),
-      Task.countDocuments()
-    ]);
+    const userCount = await User.countDocuments();
 
-    if (userCount > 0 && teamCount > 0 && projectCount > 0) {
+    if (userCount > 0) {
       console.log("Sample data already exists, skipping initialization");
-      console.log(`Current data: Users: ${userCount}, Teams: ${teamCount}, Projects: ${projectCount}, Tasks: ${taskCount}`);
       return;
     }
 
-    console.log("Initializing comprehensive sample data...");
+    console.log("Initializing basic sample data...");
 
-    // create sample users
-    const sampleUsers = [
-      { name: "John Doe", email: "john@example.com", password: "password123" },
-      { name: "Jane Smith", email: "jane@example.com", password: "password123" },
-      { name: "Mike Johnson", email: "mike@example.com", password: "password123" },
-      { name: "Sarah Wilson", email: "sarah@example.com", password: "password123" },
-      { name: "David Brown", email: "david@example.com", password: "password123" }
-    ];
+    // create just one sample user for quick initialization
+    const hashedPassword = await bcrypt.hash("password123", 10);
+    const user = new User({
+      name: "Shyam",
+      email: "shyam@gmail.com",
+      password: hashedPassword
+    });
+    await user.save();
 
-    const createdUsers = [];
-    for (const userData of sampleUsers) {
-      const existingUser = await User.findOne({ email: userData.email });
-      if (!existingUser) {
-        const hashedPassword = await bcrypt.hash(userData.password, 10);
-        const user = new User({
-          name: userData.name,
-          email: userData.email,
-          password: hashedPassword
-        });
-        const savedUser = await user.save();
-        createdUsers.push(savedUser);
-      } else {
-        createdUsers.push(existingUser);
-      }
-    }
-
-    // create sample teams
-    const sampleTeams = [
-      { name: "Design Team", description: "UI/UX design and creative team" },
-      { name: "Development Team", description: "Software development and engineering team" },
-      { name: "Marketing Team", description: "Marketing, promotion and growth team" },
-      { name: "QA Team", description: "Quality assurance and testing team" }
-    ];
-
-    const createdTeams = [];
-    for (const teamData of sampleTeams) {
-      const existingTeam = await Team.findOne({ name: teamData.name });
-      if (!existingTeam) {
-        const team = new Team(teamData);
-        const savedTeam = await team.save();
-        createdTeams.push(savedTeam);
-      } else {
-        createdTeams.push(existingTeam);
-      }
-    }
-
-    // create sample projects
-    const sampleProjects = [
-      { name: "Website Redesign", description: "Complete redesign of the company website with modern UI/UX" },
-      { name: "Mobile App Development", description: "Native mobile application for iOS and Android platforms" },
-      { name: "Marketing Campaign Q1", description: "Comprehensive marketing campaign for Q1 product launch" },
-      { name: "API Integration", description: "Integration with third-party APIs and services" },
-      { name: "Database Migration", description: "Migration from legacy database to modern cloud solution" }
-    ];
-
-    const createdProjects = [];
-    for (const projectData of sampleProjects) {
-      const existingProject = await Project.findOne({ name: projectData.name });
-      if (!existingProject) {
-        const project = new Project(projectData);
-        const savedProject = await project.save();
-        createdProjects.push(savedProject);
-      } else {
-        createdProjects.push(existingProject);
-      }
-    }
-
-    // create sample tasks
-    const sampleTasks = [
-      {
-        name: "Create wireframes for homepage",
-        projectId: createdProjects[0]._id,
-        teamId: createdTeams[0]._id,
-        owners: [createdUsers[0]._id],
-        tags: ["Design", "Wireframes", "Homepage"],
-        timeToComplete: 3,
-        status: "In Progress"
-      },
-      {
-        name: "Develop user authentication system",
-        projectId: createdProjects[1]._id,
-        teamId: createdTeams[1]._id,
-        owners: [createdUsers[1]._id, createdUsers[4]._id],
-        tags: ["Development", "Authentication", "Security"],
-        timeToComplete: 5,
-        status: "To Do"
-      },
-      {
-        name: "Design marketing materials",
-        projectId: createdProjects[2]._id,
-        teamId: createdTeams[2]._id,
-        owners: [createdUsers[2]._id],
-        tags: ["Marketing", "Design", "Materials"],
-        timeToComplete: 2,
-        status: "Completed"
-      },
-      {
-        name: "Setup development environment",
-        projectId: createdProjects[1]._id,
-        teamId: createdTeams[1]._id,
-        owners: [createdUsers[1]._id],
-        tags: ["Development", "Setup", "Environment"],
-        timeToComplete: 1,
-        status: "Completed"
-      },
-      {
-        name: "Write API documentation",
-        projectId: createdProjects[3]._id,
-        teamId: createdTeams[1]._id,
-        owners: [createdUsers[4]._id],
-        tags: ["Documentation", "API", "Technical"],
-        timeToComplete: 4,
-        status: "In Progress"
-      },
-      {
-        name: "Test mobile app features",
-        projectId: createdProjects[1]._id,
-        teamId: createdTeams[3]._id,
-        owners: [createdUsers[3]._id],
-        tags: ["Testing", "Mobile", "QA"],
-        timeToComplete: 3,
-        status: "To Do"
-      },
-      {
-        name: "Create brand guidelines",
-        projectId: createdProjects[0]._id,
-        teamId: createdTeams[0]._id,
-        owners: [createdUsers[0]._id, createdUsers[2]._id],
-        tags: ["Design", "Branding", "Guidelines"],
-        timeToComplete: 2,
-        status: "In Progress"
-      },
-      {
-        name: "Database schema design",
-        projectId: createdProjects[4]._id,
-        teamId: createdTeams[1]._id,
-        owners: [createdUsers[4]._id],
-        tags: ["Database", "Schema", "Design"],
-        timeToComplete: 3,
-        status: "Completed"
-      }
-    ];
-
-    const createdTasks = [];
-    for (const taskData of sampleTasks) {
-      const task = new Task(taskData);
-      const savedTask = await task.save();
-      createdTasks.push(savedTask);
-    }
-
-    console.log("✅ Sample data created successfully!");
-    console.log(`Users: ${createdUsers.length}`);
-    console.log(`Teams: ${createdTeams.length}`);
-    console.log(`Projects: ${createdProjects.length}`);
-    console.log(`Tasks: ${createdTasks.length}`);
-
-    // clear in-memory arrays
-    tags.length = 0;
+    console.log("✅ Basic sample data created successfully!");
 
   } catch (error) {
     console.error("Error initializing sample data:", error);
   }
 };
 
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`CORS enabled for: http://localhost:5173, http://localhost:5174, and http://localhost:5177`);
+  console.log(`CORS enabled for: http://localhost:5173, http://localhost:5174, http://localhost:5177, and Vercel domains`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`MongoDB URI: ${process.env.MONGODB_URI ? 'Set' : 'Not set'}`);
+  console.log(`JWT Secret: ${process.env.JWT_SECRET ? 'Set' : 'Not set'}`);
   
-  // initialize sample data after server starts
-  await initSampleData();
+  // initialize sample data after server starts (non-blocking)
+  initSampleData().catch(console.error);
 });
+
+// Export the Express API for Vercel
+module.exports = app;
