@@ -208,18 +208,106 @@ app.post("/api/teams", verifyJWT, async (req, res) => {
 
 app.get("/api/teams", verifyJWT, async (req, res) => {
   try {
-    const teams = await Team.find({});
+    const teams = await Team.find({}).populate('members.userId', 'name email');
     // format response to match frontend expectations
     const formattedTeams = teams.map(team => ({
       id: team._id,
       name: team.name,
       description: team.description,
+      members: team.members.map(member => ({
+        id: member._id,
+        userId: member.userId._id,
+        name: member.userId.name,
+        email: member.userId.email,
+        role: member.role,
+        addedAt: member.addedAt
+      })),
       createdAt: team.createdAt,
       updatedAt: team.updatedAt
     }));
     res.json(formattedTeams);
   } catch (error) {
     console.error("Get teams error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// add member to team
+app.post("/api/teams/:teamId/members", verifyJWT, async (req, res) => {
+  try {
+    const { teamId } = req.params;
+    const { userId, role } = req.body;
+    
+    // verify team exists
+    const team = await Team.findById(teamId);
+    if (!team) {
+      return res.status(404).json({ message: "Team not found" });
+    }
+
+    // verify user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // check if user is already a member
+    const existingMember = team.members.find(m => m.userId.toString() === userId);
+    if (existingMember) {
+      return res.status(400).json({ message: "User is already a member of this team" });
+    }
+
+    // add member to team
+    team.members.push({
+      userId,
+      role: role || 'Member',
+      addedAt: new Date()
+    });
+
+    await team.save();
+
+    // populate and return updated team
+    await team.populate('members.userId', 'name email');
+    
+    const formattedTeam = {
+      id: team._id,
+      name: team.name,
+      description: team.description,
+      members: team.members.map(member => ({
+        id: member._id,
+        userId: member.userId._id,
+        name: member.userId.name,
+        email: member.userId.email,
+        role: member.role,
+        addedAt: member.addedAt
+      })),
+      createdAt: team.createdAt,
+      updatedAt: team.updatedAt
+    };
+    
+    res.status(201).json(formattedTeam);
+  } catch (error) {
+    console.error("Add team member error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// remove member from team
+app.delete("/api/teams/:teamId/members/:memberId", verifyJWT, async (req, res) => {
+  try {
+    const { teamId, memberId } = req.params;
+    
+    const team = await Team.findById(teamId);
+    if (!team) {
+      return res.status(404).json({ message: "Team not found" });
+    }
+
+    // remove member
+    team.members = team.members.filter(m => m._id.toString() !== memberId);
+    await team.save();
+
+    res.json({ message: "Member removed successfully" });
+  } catch (error) {
+    console.error("Remove team member error:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
